@@ -15,3 +15,6 @@ def get_process_tree(procs):
 # a = get_process_tree(Proc(i) for i in psutil.process_iter())
 # print(a)
 # print('------\n', a.keys())
+
+p = Proc(37099)
+print([i.path for i in p.open_files()])
