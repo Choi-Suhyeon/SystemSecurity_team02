@@ -7,7 +7,7 @@ from matplotlib.animation import FuncAnimation
 
 class Process_Resource_Info():
     def __init__(self):
-        self.core_num = pu.cpu_count()                      # 코어 수
+        self.core_num = pu.cpu_count() # 코어 수
         self.interval = 0.2
     
     def print_system_usage(self):
