@@ -1,15 +1,14 @@
 import psutil as pu
+import time
+import threading
+
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 class Process_Resource_Info():
     def __init__(self):
-        self.total_cpu_percent = pu.cpu_percent()           # 전체 CPU 사용량
-        self.core_percent = pu.cpu_percent(percpu=True)     # 코어 당 사용량
         self.core_num = pu.cpu_count()                      # 코어 수
-        self.memory_usage = pu.virtual_memory()             # 메모리 사용량
-        self.swap_usage = pu.swap_memory()                  # 스왑 사용량
-        self.disk_io_usage = pu.disk_io_counters()          # 디스크 사용량
+        self.interval = 0.2
     
     def print_system_usage(self):
         '''
@@ -21,65 +20,94 @@ class Process_Resource_Info():
             void
         '''
 
-        print(f"Total CPU Usage: {self.total_cpu_percent}%")
-        print("Each Core Usage:")
-        for i in range(self.core_num):
-            print(f"core {i+1}: {self.core_percent[i]}%")
+        while True:
+            total_cpu_percent = pu.cpu_percent()           # 전체 CPU 사용량
+            core_percent = pu.cpu_percent(percpu=True)     # 코어 당 사용량
+            memory_usage = pu.virtual_memory()             # 메모리 사용량
+            swap_usage = pu.swap_memory()                  # 스왑 사용량
+            disk_io_usage = pu.disk_io_counters()          # 디스크 사용량
+
+            print("\033[H\033[J")  # 터미널 화면을 지움 (실시간 업데이트 시 유용)
+            print(f"Total CPU Usage: {total_cpu_percent}%")
+            print("Each Core Usage:")
+            for i in range(self.core_num):
+                print(f"core {i+1}: {core_percent[i]}%")
+
+            print(f"Total Memory Usage: {memory_usage.used / (1000 ** 3):.2f} GB / {memory_usage.total / (1000 ** 3):.2f} GB [{memory_usage.percent}%]")
+            print(f"Total Swap Usage: {swap_usage.used / (1000 ** 3):.2f} GB / {swap_usage.total / (1000 ** 3):.2f} GB [{swap_usage.percent}%]")
+            print(f"Total Disk I/O: Read={disk_io_usage.read_bytes / (1000 ** 3):.2f} GB, Write={disk_io_usage.write_bytes / (1000 ** 3):.2f} GB")
             
-        print(f"Total Memory Usage: {self.memory_usage.used / (1000 ** 3):.2f} GB / {self.memory_usage.total / (1000 ** 3):.2f} GB [{self.memory_usage.percent}%]")
-        print(f"Total Swap Usage: {self.swap_usage.used / (1000 ** 3):.2f} GB / {self.swap_usage.total / (1000 ** 3):.2f} GB [{self.swap_usage.percent}%]")
-        print(f"Total Disk I/O: Read={self.disk_io_usage.read_bytes / (1000 ** 3):.2f} GB, Write={self.disk_io_usage.write_bytes / (1000 ** 3):.2f} GB")
+            time.sleep(self.interval)  # interval 초 동안 대기 후 정보 갱신
 
     def print_cpu_usage(self):
         '''
         [explain]
-            interval 시간 동안의 평균 cpu 전체 사용량 및 코어 당 사용량을 출력
+            실시간 cpu 전체 사용량 및 코어 당 사용량을 출력
         [param] 
             void
         [return]
             void
         '''
         
-        print(f"Total CPU Usage: {self.total_cpu_percent}%")
-        print("Each Core Usage:")
-        for i in range(self.core_num):
-            print(f"core {i+1}: {self.core_percent[i]}%")
+        while True:
+            total_cpu_percent = pu.cpu_percent()           # 전체 CPU 사용량
+            core_percent = pu.cpu_percent(percpu=True)     # 코어 당 사용량
+
+            print("\033[H\033[J")
+            print(f"Total CPU Usage: {total_cpu_percent}%")
+            print("Each Core Usage:")
+            for i in range(self.core_num):
+                print(f"core {i+1}: {core_percent[i]}%")
+            
+            time.sleep(self.interval)
         
     def print_memory_usage(self):
         '''
         [explain]
-            memory 전체 사용량을 출력
+            실시간 memory 전체 사용량을 출력
         [param] 
             void
         [return]
             void
         '''
         
-        print(f"Total Memory Usage: {self.memory_usage.used / (1000 ** 3):.2f} GB / {self.memory_usage.total / (1000 ** 3):.2f} GB [{self.memory_usage.percent}%]")
+        while True:
+            memory_usage = pu.virtual_memory()  # 메모리 사용량 갱신
+            print("\033[H\033[J")
+            print(f"Total Memory Usage: {memory_usage.used / (1000 ** 3):.2f} GB / {memory_usage.total / (1000 ** 3):.2f} GB [{memory_usage.percent}%]")
+            time.sleep(self.interval)
         
     def print_swap_usage(self):
         '''
         [explain]
-            swap 전체 사용량을 출력
+            실시간 swap 전체 사용량을 출력
         [param] 
             void
         [return]
             void
         '''
         
-        print(f"Total Swap Usage: {self.swap_usage.used / (1000 ** 3):.2f} GB / {self.swap_usage.total / (1000 ** 3):.2f} GB [{self.swap_usage.percent}%]")
+        while True:
+            swap_usage = pu.swap_memory()  # 스왑 사용량 갱신
+            print("\033[H\033[J")
+            print(f"Total Swap Usage: {swap_usage.used / (1000 ** 3):.2f} GB / {swap_usage.total / (1000 ** 3):.2f} GB [{swap_usage.percent}%]")
+            time.sleep(self.interval)
         
     def print_disk_usage(self):
         '''
         [explain]
-            disk i/o 전체 사용량을 출력
+            실시간 disk i/o 전체 사용량을 출력
         [param] 
             void
         [return]
             void
         '''
         
-        print(f"Total Disk I/O: Read={self.disk_io_usage.read_bytes / (1000 ** 3):.2f} GB, Write={self.disk_io_usage.write_bytes / (1000 ** 3):.2f} GB")
+        while True:
+            disk_io_usage = pu.disk_io_counters()  # 디스크 I/O 사용량 갱신
+            print("\033[H\033[J")
+            print(f"Total Disk I/O: Read={disk_io_usage.read_bytes / (1000 ** 3):.2f} GB, Write={disk_io_usage.write_bytes / (1000 ** 3):.2f} GB")
+            time.sleep(self.interval)
         
     def memory_usage_graph(self, i, time_data, usage_data, line):
         '''
@@ -130,5 +158,8 @@ class Process_Resource_Info():
 
 
 ex_1 = Process_Resource_Info()
-ex_1.print_system_usage()
+system_usage_thread = threading.Thread(target=ex_1.print_system_usage)
+system_usage_thread.daemon = True  # 메인 스레드가 종료되면 이 스레드도 자동 종료됨
+system_usage_thread.start()
+
 process1 = ex_1.memory_realtime_graph()
