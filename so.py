@@ -1,20 +1,19 @@
-from functools import reduce
 from process import Proc
-import psutil
 
-def get_process_tree(procs):
+def get_shared_objects(proc):
     '''
     [param]
-    procs: (iterable) process tree를 구할 Proc 객체들의 시퀀스.
+    proc : (Proc) 메모리맵을 구할 process의 Proc 객체
 
     [return]
-    pid를 key로 key의 자식 프로세스들을(Proc 객체들의 집합) value로 하는 딕셔너리.
+    (tuple) path만 문자열 형태로 tuple에 담아 반환.
+
+    [exception]
+    psutil.NoSuchProcess : 프로세스 부재.
+    psutil.AccessDenied : 프로세스에 대한 접근 거부.
     '''
-    return reduce(lambda d, p: d | { p.ppid(): d.get(p.ppid(), set()) | set((p,)) }, procs, dict())
+    return tuple(path for mmap in proc.memory_maps() if '.so' in (path := mmap.path))
+    
+# shared_objects = get_shared_objects(Proc(11593))
+# print(shared_objects)
 
-# a = get_process_tree(Proc(i) for i in psutil.process_iter())
-# print(a)
-# print('------\n', a.keys())
-
-p = Proc(37099)
-print([i.path for i in p.open_files()])
