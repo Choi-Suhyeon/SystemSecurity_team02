@@ -5,7 +5,7 @@ import threading
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-class Process_Resource_Info():
+class ProcessResourceInfo():
     def __init__(self):
         self.core_num = pu.cpu_count() # 코어 수
         self.interval = 0.2
@@ -109,7 +109,7 @@ class Process_Resource_Info():
             print(f"Total Disk I/O: Read={disk_io_usage.read_bytes / (1000 ** 3):.2f} GB, Write={disk_io_usage.write_bytes / (1000 ** 3):.2f} GB")
             time.sleep(self.interval)
         
-    def memory_usage_graph(self, i, time_data, usage_data, line):
+    def __memory_usage_graph(self, i, time_data, usage_data, line):
         '''
         [explain]
             실시간 데이터 업데이트 함수
@@ -145,19 +145,17 @@ class Process_Resource_Info():
         time_data, usage_data = [i * 0.2 for i in range(301)], [0]*301
         line, = ax.plot(time_data, usage_data, lw=2)
 
-        ax.set_xlim(0, 60)
-        ax.set_xticks(range(0, 61, 10))
         ax.set_xticklabels([str(60 - i) for i in range(0, 61, 10)])
         ax.set_ylim(0, 100)
         ax.set_xlabel("Time")
         ax.set_ylabel("Memory Usage (%)")
         ax.set_title("Real-time Memory Usage")
 
-        ani = FuncAnimation(fig, ex_1.memory_usage_graph, fargs=(time_data, usage_data, line), interval=200, cache_frame_data=False)
+        ani = FuncAnimation(fig, self.__memory_usage_graph, fargs=(time_data, usage_data, line), interval=200, cache_frame_data=False)
         plt.show()
 
 
-ex_1 = Process_Resource_Info()
+ex_1 = ProcessResourceInfo()
 system_usage_thread = threading.Thread(target=ex_1.print_system_usage)
 system_usage_thread.daemon = True  # 메인 스레드가 종료되면 이 스레드도 자동 종료됨
 system_usage_thread.start()
