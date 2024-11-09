@@ -16,5 +16,3 @@ def get_process_tree(procs):
 # print(a)
 # print('------\n', a.keys())
 
-p = Proc(37099)
-print([i.path for i in p.open_files()])
