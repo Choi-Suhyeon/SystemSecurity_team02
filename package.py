@@ -13,7 +13,7 @@ class PacketCollector:
         connections = []
         try:
             proc = psutil.Process(self.pid)
-            for conn in proc.connections(kind="inet"):
+            for conn in proc.net_connections(kind="inet"):
                 local_ip = conn.laddr.ip
                 local_port = conn.laddr.port
                 remote_ip = conn.raddr.ip if conn.raddr else None
@@ -73,7 +73,7 @@ class PacketCollector:
 
 # 테스트 코드
 if __name__ == "__main__":
-    pid = 1234  # 실제 PID 대체
+    pid = 3566  # 실제 PID 대체
     collector = PacketCollector(pid)
     try:
         print("패킷 수집 시작...")
