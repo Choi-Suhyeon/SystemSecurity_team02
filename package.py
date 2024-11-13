@@ -1,63 +1,88 @@
+import psutil
 from scapy.all import sniff, IP, TCP, UDP
 
 class PacketCollector:
-    def __init__(self):
-        self.packets_info = []  # 存储捕获的数据包信息
+    def __init__(self, pid):
+        self.packets_info = []
         self.collecting = False
+        self.pid = pid
+        self.connections = self._get_connections()
 
-    def start_collection(self, iface=None, filter=None):
-        """
-        패킷 수집 시작
-        :param iface: (str) 패킷 수집할 포트(default: None - 모든 포트)
-        :param filter: (str) BPF Filter, 지정할 패킷 종류(default: None)
-        """
+    def _get_connections(self):
+        """지정된 PID 모든 패킷 수집"""
+        connections = []
+        try:
+            proc = psutil.Process(self.pid)
+            for conn in proc.connections(kind="inet"):
+                local_ip = conn.laddr.ip
+                local_port = conn.laddr.port
+                remote_ip = conn.raddr.ip if conn.raddr else None
+                remote_port = conn.raddr.port if conn.raddr else None
+                connections.append((local_ip, local_port, remote_ip, remote_port))
+        except psutil.NoSuchProcess:
+            return []  # PID 없을 때 빈 리스트 반환
+        return connections
+
+    def start_collection(self, iface=None):
+        """ PID 관련 패킷 수집 시작"""
         self.collecting = True
-        print("패킷 수집 시작...")
-
-        # 开始捕获数据包
-        sniff(iface=iface, filter=filter, prn=self._process_packet, stop_filter=lambda x: not self.collecting)
+        sniff(iface=iface, prn=self._process_packet, stop_filter=lambda x: not self.collecting)
 
     def stop_collection(self):
-        """Stop 패킷 수집"""
+        """패킷 수집 멈춤"""
         self.collecting = False
-        print("패킷 수집 멈춤")
 
     def _process_packet(self, packet):
-        """수집된 데이터 처리，IP 헤더와 TCP/UDP 헤더 데이터 추출"""
+        """수집된 패킷 데이터 처리，IP 헤더과 TCP/UDP 헤더만 추출"""
         if IP in packet:
             ip_header = packet[IP]
             src_ip = ip_header.src
             dst_ip = ip_header.dst
 
             if TCP in packet:
-                tcp_header = packet[TCP]
-                src_port = tcp_header.sport
-                dst_port = tcp_header.dport
+                transport_header = packet[TCP]
+                src_port = transport_header.sport
+                dst_port = transport_header.dport
                 protocol = "TCP"
             elif UDP in packet:
-                udp_header = packet[UDP]
-                src_port = udp_header.sport
-                dst_port = udp_header.dport
+                transport_header = packet[UDP]
+                src_port = transport_header.sport
+                dst_port = transport_header.dport
                 protocol = "UDP"
             else:
-                return  # TCP/UDP 패킷 아니면 SKIP
+                return
 
-            # 保存提取的信息
-            packet_info = {
-                "src_ip": src_ip,
-                "dst_ip": dst_ip,
-                "src_port": src_port,
-                "dst_port": dst_port,
-                "protocol": protocol
-            }
-            self.packets_info.append(packet_info)
-            """ print(packet_info) 출력하기 """
-            return packet_info
+            # 연속 확인
+            for (local_ip, local_port, remote_ip, remote_port) in self.connections:
+                if ((src_ip == local_ip and src_port == local_port) or
+                    (dst_ip == local_ip and dst_port == local_port)) and \
+                   ((remote_ip is None) or (src_ip == remote_ip or dst_ip == remote_ip)):
+                    packet_info = {
+                        "src_ip": src_ip,
+                        "dst_ip": dst_ip,
+                        "src_port": src_port,
+                        "dst_port": dst_port,
+                        "protocol": protocol
+                    }
+                    self.packets_info.append(packet_info)
+                    return packet_info
 
-# 示例用法
+    def get_collected_packets(self):
+        """패킷 정보 리턴"""
+        return self.packets_info
+
+# 테스트 코드
 if __name__ == "__main__":
-    collector = PacketCollector()
+    pid = 1234  # 실제 PID 대체
+    collector = PacketCollector(pid)
     try:
-        collector.start_collection()  # 开始捕获所有接口上的数据包
+        print("패킷 수집 시작...")
+        collector.start_collection()
     except KeyboardInterrupt:
-        collector.stop_collection()  # 捕获 Ctrl+C 停止捕获
+        collector.stop_collection()
+        print("패킷 수집 멈춤")
+
+    # 패킷 데이터 추출
+    collected_packets = collector.get_collected_packets()
+    for packet in collected_packets:
+        print(packet)
