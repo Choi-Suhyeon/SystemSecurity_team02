@@ -16,3 +16,6 @@ def get_process_tree(procs):
 # print(a)
 # print('------\n', a.keys())
 
+# a = [Proc(i) for i in psutil.process_iter()]
+# print([i.name() for i in a])
+

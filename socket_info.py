@@ -22,4 +22,4 @@ def get_socket_info():
 
     return tuple([get_info(conn, kind == "tcp") for conn in psutil.net_connections(kind=kind)] for kind in ("tcp", "udp"))
 
-# print(get_socket_info())
+print(get_socket_info())

@@ -37,8 +37,6 @@ def get_geolocation(ip_address):
         return None
     
 
-'''
-geo_info = get_geolocation("127.0.0.1")
+geo_info = get_geolocation("223.130.192.247")
 location = f"{geo_info['City']}, {geo_info['Region']}, {geo_info['Country']}" if geo_info else "Unknown"
 print(location)
-'''

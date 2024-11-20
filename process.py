@@ -125,6 +125,8 @@ class Proc(psutil.Process):
 
             return result
 
+        if not self.is_file_exists():
+            return None
 
         return check_virustotal(file_hash) if (file_hash := get_file_hash(proc.exe())) else None
 
@@ -152,6 +154,19 @@ class Proc(psutil.Process):
                 soft_limit = None
 
         return (soft_limit, handle_info)
+
+    def is_file_exists():
+        '''
+        [return]
+        bool : 파일 존재 여부
+        '''
+
+        try:
+            return not os.readlink(f'/proc/{self.pid}/exe').endswith(' (deleted)')
+        except:
+            return False
+
+
 
 # p = Proc(12264) 
 # print(p.get_handles_info())
