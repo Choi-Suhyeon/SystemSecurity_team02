@@ -238,7 +238,6 @@ class ProcessViewer(QMainWindow):
                 procs.append(Proc(p))
             except Exception:
                 continue
-
         return procs
 
     def get_open_nodes(self):
@@ -292,7 +291,7 @@ class ProcessViewer(QMainWindow):
         menu = QMenu(self.list_view)
 
         check_vt_action = QAction("Check with VirusTotal", self)
-        check_vt_action.triggered.connect(lambda: (proc.check_process_with_vt(), self.update_process_data()))
+        check_vt_action.triggered.connect(proc.check_process_with_vt)
 
         check_existence_action = QAction("Check File Existence", self)
         check_existence_action.triggered.connect(proc.is_file_exists)

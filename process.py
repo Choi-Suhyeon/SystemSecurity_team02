@@ -1,6 +1,8 @@
+import hashlib
 import psutil
 import signal
 import os
+import vt
 
 class Proc(psutil.Process):
     def __init__(self, arg=None):
@@ -15,6 +17,10 @@ class Proc(psutil.Process):
         ValueError : 적절한 타입의 매개변수가 주어지지 않은 경우
         psutil.NoSuchProcess : 주어진 pid가 존재하지 않는 경우
         '''
+        self.does_exist = ''
+        self.vt         = ''
+
+        self.api_key = 'e90aa4ffe5d2df373fabc7f00dcc22db00c978da9a9916331c8b23311c648883'
 
         match arg:
             case psutil.Process():
@@ -72,11 +78,8 @@ class Proc(psutil.Process):
 
         return tuple(path for mmap in self.memory_maps() if '.so' in (path := mmap.path))
 
-    def check_process_with_vt(self, api_key):
+    def check_process_with_vt(self):
         '''
-        [param]
-        api_key : (str) virus total의 api key
-
         [return]
         (None | tuple[int, int]) : hash를 구했으면 check_virustotal의 결과를 그대로 반환. 그렇지 않으면 None 반환.
         '''
@@ -90,6 +93,8 @@ class Proc(psutil.Process):
             (None | str) 실패하면 None, 성공하면, hash 값을 문자열로 반환.
             '''
 
+            print('debug get file hash')
+
             try:
                 sha256_hash = hashlib.sha256()
 
@@ -97,8 +102,11 @@ class Proc(psutil.Process):
                     for byte_block in iter(lambda: f.read(4096), b""):
                         sha256_hash.update(byte_block)
 
+                print('debug get file hash end')
+
                 return sha256_hash.hexdigest()
-            except:
+            except Exception as e:
+                print(f'debug error : {e}')
                 return None
 
         def check_virustotal(file_hash):
@@ -110,25 +118,29 @@ class Proc(psutil.Process):
             (None | tuple[int, int]) : 가져오는데 성공했으면 tuple에 악성으로 판단한 엔진 수와 전체 엔진 수를 넣어 반환.
             '''
 
-            client = vt.Client(api_key)
+            client = vt.Client(self.api_key)
 
+            print('debug in check_virustotal')
             try:
                 file_report = client.get_object(f"/files/{file_hash}")
                 positives   = file_report.last_analysis_stats['malicious']  # 악성으로 판단한 엔진 수
                 total       = sum(file_report.last_analysis_stats.values())  # 전체 엔진 수
-                result      = (positives, total)
 
+                print(f'debug : {positives} {total}')
+                client.close()
+                return f'{positives}/{total}'
             except vt.error.APIError as e:
-                result = None
-
-            client.close()
-
-            return result
+                client.close()
+                return None
 
         if not self.is_file_exists():
             return None
 
-        return check_virustotal(file_hash) if (file_hash := get_file_hash(proc.exe())) else None
+        print('debug : check_process_with_vt')
+
+        self.vt = check_virustotal(file_hash) if (file_hash := get_file_hash(self.exe())) else ''
+
+        print('debug : end')
 
     def get_handles_info(self):
         limits_path = f'/proc/{self.pid}/limits'
@@ -153,19 +165,23 @@ class Proc(psutil.Process):
             else:
                 soft_limit = None
 
+
         return (soft_limit, handle_info)
 
-    def is_file_exists():
+    def is_file_exists(self):
         '''
         [return]
         bool : 파일 존재 여부
         '''
 
-        try:
-            return not os.readlink(f'/proc/{self.pid}/exe').endswith(' (deleted)')
-        except:
-            return False
+        print('debug : in is_file_exists')
 
+        try:
+            self.does_exist = 'N' if os.readlink(f'/proc/{self.pid}/exe').endswith(' (deleted)') else 'Y'
+            return self.does_exist == 'Y'
+        except:
+            self.does_exist = 'N'
+            return False
 
 
 # p = Proc(12264) 
