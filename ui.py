@@ -3,125 +3,149 @@ import sys
 import re
 import time
 import psutil
+import signal
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QTableWidget, QTabBar,
     QWidget, QLineEdit, QPushButton, QTabWidget, QTreeView, QTableView, QHeaderView,
-    QAbstractItemView, QMenu, QAction
+    QAbstractItemView, QMenu, QAction, QTableWidgetItem
 )
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
-from PyQt5.QtCore import QTimer, QItemSelectionModel, QPoint, Qt
+from PyQt5.QtCore import QTimer, QItemSelectionModel, QPoint, Qt, QSize
 from process import Proc
 from filter_process import filter_process_by_name
 from process_tree import get_process_tree
-
-# Force PyQt to use X11 on Wayland systems to suppress the warning
-os.environ["QT_QPA_PLATFORM"] = "xcb"
+from PyQt5.QtGui import QPainter, QColor, QFont
+from itertools import tee
 
 
 class ProcessViewer(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Process Viewer")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle('Process Viewer')
+        self.setGeometry(300, 300, 1100, 600)
 
-        # Initialize models for list and tree views
-        self.list_model = QStandardItemModel()
-        self.tree_model = QStandardItemModel()
+        tabs = QTabWidget()
+        resource_tab = QWidget()
+        network_tab = QWidget()
 
-        # Main container widget
-        self.container = QWidget()
-        self.setCentralWidget(self.container)
-        self.layout = QHBoxLayout(self.container)
+        self.procs = list()
+        self.regex = str()
+        # self.previous_cpu_times = {}
+        # self.previous_cpu_data = {}
 
-        # Tabs
-        self.tabs = QTabWidget()
-        self.tabs.setTabPosition(QTabWidget.West)
-        self.layout.addWidget(self.tabs)
+        self.update_proc_objs()
+        # self.init_cpu_usage()
 
-        # Initialize tabs
-        self.init_process_tab()
-        self.init_other_tabs()
+        tabs.setTabPosition(QTabWidget.West)
+        tabs.addTab(self.get_process_tab(), 'Processes')
+        tabs.addTab(resource_tab, "Resources")
+        tabs.addTab(network_tab, "Per-Process Networks")
 
-        # Data storage
-        self.previous_cpu_times = {}
-        self.previous_update_time = time.time()
-        self.previous_cpu_data = {}
+        self.setCentralWidget(tabs)
 
-        # Start periodic updates
-        self.init_cpu_usage()
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_process_data)
-        self.timer.start(1000)
+        self.timer = QTimer()
 
-        # Filtering flag and regex pattern
-        self.filter_regex = None
-
-    def init_process_tab(self):
-        # Process tab layout
-        process_tab = QWidget()
-        process_layout = QVBoxLayout(process_tab)
-
-        # Search bar
-        search_layout = QHBoxLayout()
-        self.search_entry = QLineEdit()
-        self.search_entry.setPlaceholderText("Enter regex for filtering processes")
-        search_layout.addWidget(self.search_entry)
-
-        search_button = QPushButton("Search")
-        search_button.clicked.connect(self.on_search_click)
-        search_layout.addWidget(search_button)
-        process_layout.addLayout(search_layout)
-
-        # Tabs for list and tree views
-        process_views = QTabWidget()
-        process_layout.addWidget(process_views)
-
-        # List view
-        self.list_view = QTableView()
-        self.list_view.setModel(self.list_model)
-        self.list_model.setHorizontalHeaderLabels(
-            ["Name", "PID", "User", "Priority", "CPU %", "Memory %", "Disk Read (KB)", "Disk Write (KB)", "does exist", "virus total"]
-        )
-        self.list_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.list_view.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.list_view.horizontalHeader().setStretchLastSection(False)
-        self.list_view.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.list_view.verticalHeader().setVisible(False)
-
-        # Add right-click menu to the list view
-        self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.list_view.customContextMenuRequested.connect(self.on_list_view_right_click)
-
-        process_views.addTab(self.list_view, "List")
-
-        # Tree view
-        self.tree_view = QTreeView()
-        self.tree_view.setModel(self.tree_model)
-        self.tree_model.setHorizontalHeaderLabels(["Name", "PID"])
-        self.tree_view.header().setSectionResizeMode(QHeaderView.ResizeToContents)
-        process_views.addTab(self.tree_view, "Tree")
-
-        # Add process tab to main tabs
-        self.tabs.addTab(process_tab, "Processes")
-
-    def init_other_tabs(self):
-        # Placeholder tabs for other features
-        for tab_name in ["Resources", "Network", "Users", "Advanced Features"]:
-            placeholder = QWidget()
-            layout = QVBoxLayout(placeholder)
-            layout.addWidget(QPushButton(f"{tab_name} - Content goes here"))
-            self.tabs.addTab(placeholder, tab_name)
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.update_proc_table)
+        self.timer.start()
 
     def init_cpu_usage(self):
-        """Initialize CPU usage for all processes."""
-        for proc in self.get_all_procs():
+        for proc in self.procs:
             try:
                 self.previous_cpu_times[proc.pid] = proc.cpu_times()
             except Exception:
                 pass
 
+    def update_proc_objs(self):
+        pid_set      = set(i.pid for i in self.procs)
+        pi1, pi2     = tee(psutil.process_iter())
+        new_pids_set = set(i.pid for i in pi1)
+
+        for p in pi2:
+            try:
+                if p.pid not in pid_set:
+                    self.procs.append(Proc(p))
+            except:
+                continue
+
+        self.procs = [i for i in self.procs if i.pid in new_pids_set]
+
+    def get_process_tab(self):
+        inner_tabs = QTabWidget()
+        tree_tab = QWidget()
+
+        inner_tabs.addTab(self.get_list_view_tab(), 'List View')
+        inner_tabs.addTab(tree_tab, 'Tree View')
+
+        return inner_tabs
+
+    def get_list_view_tab(self):
+        self.reg_line_edit = QLineEdit(self)
+        self.filter_btn    = QPushButton('filter', self)
+
+        self.reg_line_edit.editingFinished.connect(self.filter_process)
+        self.filter_btn.clicked.connect(self.filter_process)
+
+        hbox = QHBoxLayout()
+
+        hbox.addWidget(self.reg_line_edit)
+        hbox.addWidget(self.filter_btn)
+
+        var_names = [
+            'obj', 'name', 'pid', 'user', 'priority', 'cpu (%)', 
+            'memory (%)',  'Disk Read (KB)', 'Disk Write (KB)', 
+            'does exist', 'virus total',
+        ]
+
+        self.proc_table = QTableWidget(self)
+        self.proc_table.setColumnCount(len(var_names))
+
+        self.proc_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.proc_table.verticalHeader().setVisible(False)
+        self.proc_table.setHorizontalHeaderLabels(var_names)
+        self.proc_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.proc_table.customContextMenuRequested.connect(self.showContextMenu)
+        self.proc_table.hideColumn(0)
+        self.update_proc_table()
+
+        vbox = QVBoxLayout()
+
+        vbox.addLayout(hbox)
+        vbox.addWidget(self.proc_table)
+
+        result = QWidget()
+        result.setLayout(vbox)
+
+        return result
+
+    def update_proc_table(self):
+        self.update_proc_objs()
+
+        filtered_procs = filtered if self.regex and (filtered := filter_process_by_name(self.procs, self.regex)) is not None else self.procs
+        row_cnt = 0
+
+        self.proc_table.setRowCount(len(filtered_procs))
+        
+        for proc in filtered_procs:
+            try:
+                # cpu_percent = self.calculate_cpu_percent(proc)
+                self.proc_table.setItem(row_cnt, 0, QTableWidgetItem(str(proc)))
+                self.proc_table.setItem(row_cnt, 1, QTableWidgetItem(proc.name()))
+                self.proc_table.setItem(row_cnt, 2, QTableWidgetItem(str(proc.pid)))
+                self.proc_table.setItem(row_cnt, 3, QTableWidgetItem(proc.username()))
+                self.proc_table.setItem(row_cnt, 4, QTableWidgetItem(str(proc.nice())))
+                self.proc_table.setItem(row_cnt, 5, QTableWidgetItem(f'00.000%'))
+                self.proc_table.setItem(row_cnt, 6, QTableWidgetItem(f'{proc.memory_percent():0>6.3f}%'))
+                self.proc_table.setItem(row_cnt, 7, QTableWidgetItem(str(proc.io_counters().read_bytes / 1024)))
+                self.proc_table.setItem(row_cnt, 8, QTableWidgetItem(str(proc.io_counters().write_bytes / 1024)))
+                self.proc_table.setItem(row_cnt, 9, QTableWidgetItem('')) # proc.does_exist
+                self.proc_table.setItem(row_cnt, 10, QTableWidgetItem('')) # proc.vt
+                row_cnt += 1
+
+            except Exception:
+                continue
+
     def calculate_cpu_percent(self, proc):
-        """Calculate CPU percent usage for a given process."""
         try:
             current_time = time.time()
             if proc.pid not in self.previous_cpu_times:
@@ -144,163 +168,32 @@ class ProcessViewer(QMainWindow):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return 0.0
 
-    def update_process_data(self):
-        """Update both list and tree views."""
-        self.update_list_data()
-        self.update_tree_data()
+    def filter_process(self):
+        self.regex = self.reg_line_edit.text()
 
-    def update_list_data(self):
-        """Update the process list model."""
-        selected_pids = self.get_selected_pids()
+    def showContextMenu(self, pos: QPoint):
+        selected_row = self.proc_table.indexAt(pos).row()
 
-        self.list_model.removeRows(0, self.list_model.rowCount())
-
-        all_procs = self.get_all_procs()
-
-        if self.filter_regex:
-            try:
-                filtered_procs = filter_process_by_name(all_procs, self.filter_regex)
-            except re.error:
-                filtered_procs = []
-        else:
-            filtered_procs = all_procs
-
-        for proc in filtered_procs:
-            try:
-                cpu_percent = self.calculate_cpu_percent(proc)
-                data = [
-                    proc.name(),
-                    proc.pid,
-                    proc.username(),
-                    proc.nice(),
-                    f'{cpu_percent:0>6.3f}%',
-                    f'{proc.memory_percent():0>6.3f}%',
-                    proc.io_counters().read_bytes / 1024,
-                    proc.io_counters().write_bytes / 1024,
-                    proc.does_exist,
-                    proc.vt,
-                ]
-                self.list_model.appendRow([QStandardItem(str(item)) for item in data])
-            except Exception:
-                continue
-
-        self.previous_update_time = time.time()
-        self.restore_selected_pids(selected_pids)
-
-        self.list_view.resizeRowsToContents()
-        self.list_view.resizeColumnsToContents()
-
-    def get_selected_pids(self):
-        selected_indexes = self.list_view.selectionModel().selectedRows(1)
-        selected_pids = []
-        for index in selected_indexes:
-            selected_pids.append(int(self.list_model.item(index.row(), 1).text()))
-        return selected_pids
-
-    def restore_selected_pids(self, selected_pids):
-        for row in range(self.list_model.rowCount()):
-            pid_item = self.list_model.item(row, 1)
-            if pid_item and int(pid_item.text()) in selected_pids:
-                index = self.list_model.indexFromItem(pid_item)
-                self.list_view.selectionModel().select(index, QItemSelectionModel.Select | QItemSelectionModel.Rows)
-
-    def update_tree_data(self):
-        vertical_scroll_position = self.tree_view.verticalScrollBar().value()
-        open_nodes = self.get_open_nodes()
-
-        process_tree = get_process_tree(self.get_all_procs())
-
-        def build_tree(parent_item, parent_pid):
-            for proc in process_tree.get(parent_pid, []):
-                child_item = QStandardItem(proc.name())
-                child_pid_item = QStandardItem(str(proc.pid))
-                parent_item.appendRow([child_item, child_pid_item])
-                build_tree(child_item, proc.pid)
-
-        self.tree_model.removeRows(0, self.tree_model.rowCount())
-        self.tree_model.setHorizontalHeaderLabels(["Name", "PID"])
-
-        for parent_pid, children in sorted(process_tree.items()):
-            parent_proc = next((p for p in self.get_all_procs() if p.pid == parent_pid), None)
-            if parent_proc:
-                parent_item = QStandardItem(parent_proc.name())
-                parent_pid_item = QStandardItem(str(parent_proc.pid))
-                self.tree_model.appendRow([parent_item, parent_pid_item])
-                build_tree(parent_item, parent_pid)
-
-        self.restore_open_nodes(open_nodes)
-        self.tree_view.verticalScrollBar().setValue(vertical_scroll_position)
-
-    def get_all_procs(self):
-        procs = []
-        for p in psutil.process_iter():
-            try:
-                procs.append(Proc(p))
-            except Exception:
-                continue
-
-        return procs
-
-    def get_open_nodes(self):
-        open_nodes = set()
-
-        def collect_open_nodes(parent_index):
-            if self.tree_view.isExpanded(parent_index):
-                pid = int(self.tree_model.itemFromIndex(parent_index.siblingAtColumn(1)).text())
-                open_nodes.add(pid)
-                for row in range(self.tree_model.rowCount(parent_index)):
-                    child_index = self.tree_model.index(row, 0, parent_index)
-                    collect_open_nodes(child_index)
-
-        for row in range(self.tree_model.rowCount()):
-            index = self.tree_model.index(row, 0)
-            collect_open_nodes(index)
-
-        return open_nodes
-
-    def restore_open_nodes(self, open_nodes):
-        def expand_matching_nodes(parent_index):
-            if not parent_index.isValid():
-                return
-            pid = int(self.tree_model.itemFromIndex(parent_index.siblingAtColumn(1)).text())
-            if pid in open_nodes:
-                self.tree_view.setExpanded(parent_index, True)
-            for row in range(self.tree_model.rowCount(parent_index)):
-                child_index = self.tree_model.index(row, 0, parent_index)
-                expand_matching_nodes(child_index)
-
-        for row in range(self.tree_model.rowCount()):
-            index = self.tree_model.index(row, 0)
-            expand_matching_nodes(index)
-
-    def on_search_click(self):
-        self.filter_regex = self.search_entry.text()
-        self.update_list_data()
-
-    def on_list_view_right_click(self, position: QPoint):
-        indexes = self.list_view.selectionModel().selectedRows()
-        if not indexes:
+        if selected_row < 0:
             return
 
-        pid_index = indexes[0]
-        pid = int(self.list_model.item(pid_index.row(), 1).text())
+        self.proc_table.selectRow(selected_row)  
 
-        proc = next((p for p in self.get_all_procs() if p.pid == pid), None)
-        if not proc:
-            return
+        context_menu = QMenu(self)
 
-        menu = QMenu(self.list_view)
+        process_kill_action    = QAction('kill process', self)
+        check_existence_action = QAction('check file existence', self)
+        check_vt_action        = QAction('check with virus total', self)
 
-        check_vt_action = QAction("Check with VirusTotal", self)
-        check_vt_action.triggered.connect(lambda: (proc.check_process_with_vt(), self.update_process_data()))
+        process_kill_action.triggered.connect(lambda: os.kill(int(self.proc_table.item(selected_row, 2).text()), signal.SIGTERM))
+        # check_existence_action.triggered.connect()
+        # check_vt_action.triggered.connect()
 
-        check_existence_action = QAction("Check File Existence", self)
-        check_existence_action.triggered.connect(proc.is_file_exists)
+        context_menu.addAction(process_kill_action)
+        # context_menu.addAction(check_existence_action)
+        # context_menu.addAction(check_vt_action)
+        context_menu.exec_(self.proc_table.viewport().mapToGlobal(pos))
 
-        menu.addAction(check_vt_action)
-        menu.addAction(check_existence_action)
-
-        menu.exec_(self.list_view.viewport().mapToGlobal(position))
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
