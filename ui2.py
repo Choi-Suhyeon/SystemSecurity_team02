@@ -50,7 +50,6 @@ class ProcessViewer(QMainWindow):
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.update_proc_table)
         self.timer.timeout.connect(self.update_proc_users_table)
-        self.timer.timeout.connect(self.update_proc_tree_table)
         self.timer.start()
 
     def init_cpu_usage(self):
@@ -107,10 +106,12 @@ class ProcessViewer(QMainWindow):
 
     def get_process_tab(self):
         inner_tabs = QTabWidget()
+        users_tab = QWidget()
+        tree_tab = QWidget()
 
         inner_tabs.addTab(self.get_list_view_tab(), 'List')
         inner_tabs.addTab(self.get_users_view_tab(), 'Users')
-        inner_tabs.addTab(self.get_tree_view_tab(), 'Tree')
+        inner_tabs.addTab(tree_tab, 'Tree')
 
         return inner_tabs
 
@@ -163,30 +164,17 @@ class ProcessViewer(QMainWindow):
 
         self.proc_table_user = QTreeWidget()
         self.proc_table_user.setColumnCount(len(var_names))
+
+        # self.proc_table_user.setSelectionBehavior(QTableWidget.SelectRows)
         self.proc_table_user.setHeaderLabels(var_names)
+        # self.proc_table_user.setContextMenuPolicy(Qt.CustomContextMenu)
+        # self.proc_table_user.customContextMenuRequested.connect(self.showContextMenu)
+        # self.proc_table_user.hideColumn(0)
         self.update_proc_users_table()
 
         vbox = QVBoxLayout()
+
         vbox.addWidget(self.proc_table_user)
-
-        result = QWidget()
-        result.setLayout(vbox)
-
-        return result
-
-    def get_tree_view_tab(self):
-        var_names = [
-            'user', 'name', 'pid', 'priority', 'cpu (%)', 
-            'memory (%)',  'Disk Read (KB)', 'Disk Write (KB)', 
-        ]
-
-        self.proc_table_tree = QTreeWidget()
-        self.proc_table_tree.setColumnCount(len(var_names))
-        self.proc_table_tree.setHeaderLabels(var_names)
-        self.update_proc_tree_table()
-
-        vbox = QVBoxLayout()
-        vbox.addWidget(self.proc_table_tree)
 
         result = QWidget()
         result.setLayout(vbox)
@@ -223,6 +211,7 @@ class ProcessViewer(QMainWindow):
                 continue
                 
     def update_proc_users_table(self):
+        # 열린 상태와 스크롤 위치 저장
         def save_tree_state(tree_widget):
             state = {}
             root = tree_widget.invisibleRootItem()
@@ -248,7 +237,7 @@ class ProcessViewer(QMainWindow):
         scroll_position = self.proc_table_user.verticalScrollBar().value()
         tree_state = save_tree_state(self.proc_table_user)
 
-        self.proc_table_user.clear() 
+        self.proc_table_user.clear()  # 기존 트리 내용 삭제
 
         for user in sorted(self.procs_user.keys()):
             try:
@@ -270,97 +259,9 @@ class ProcessViewer(QMainWindow):
             except Exception:
                 continue
 
+        # 열린 상태와 스크롤 위치 복원
         restore_tree_state(self.proc_table_user, tree_state)
         self.proc_table_user.verticalScrollBar().setValue(scroll_position)
-
-    def update_proc_tree_table(self):
-        def save_tree_state(tree_widget):
-            state = {}
-            root = tree_widget.invisibleRootItem()
-            stack = [(root, [])]
-            while stack:
-                item, path = stack.pop()
-                if item.isExpanded():
-                    state[tuple(path)] = True
-                for i in range(item.childCount()):
-                    stack.append((item.child(i), path + [i]))
-            return state
-
-        def restore_tree_state(tree_widget, state):
-            root = tree_widget.invisibleRootItem()
-            stack = [(root, [])]
-            while stack:
-                item, path = stack.pop()
-                if tuple(path) in state:
-                    item.setExpanded(True)
-                for i in range(item.childCount()):
-                    stack.append((item.child(i), path + [i]))
-
-        scroll_position = self.proc_table_tree.verticalScrollBar().value()
-        tree_state = save_tree_state(self.proc_table_tree)
-
-        self.proc_table_tree.clear() 
-        
-        # todo
-        # Fetch the process tree
-        process_tree = get_process_tree(self.procs)
-
-        def add_tree_items(parent_item, parent_pid):
-            """
-            Recursively add child processes to the tree.
-            """
-            if parent_pid not in process_tree:
-                return
-
-            for child_pid in process_tree[parent_pid]:
-                try:
-                    # Create a new tree item for the child process
-                    child_proc = next(proc for proc in self.procs if proc.pid == child_pid)
-                    child_item = QTreeWidgetItem(parent_item)
-                    child_item.setText(0, child_proc.username())
-                    child_item.setText(1, child_proc.name())
-                    child_item.setText(2, str(child_proc.pid))
-                    child_item.setText(3, str(child_proc.nice()))
-                    child_item.setText(4, f'00.000%')
-                    child_item.setText(5, f'{child_proc.memory_percent():0>6.3f}%')
-                    child_item.setText(6, str(child_proc.io_counters().read_bytes / 1024))
-                    child_item.setText(7, str(child_proc.io_counters().write_bytes / 1024))
-
-                    # Recursively add the children of this process
-                    add_tree_items(child_item, child_pid)
-                except Exception:
-                    # Skip if process info is not available
-                    continue
-
-        # Clear existing items in the tree
-        self.proc_table_tree.clear()
-
-        # Add all root processes to the tree
-        for parent_pid, children in process_tree.items():
-            # A root process has no parent in the process_tree keys
-            if parent_pid not in process_tree or all(parent_pid not in v for v in process_tree.values()):
-                try:
-                    root_proc = next(proc for proc in self.procs if proc.pid == parent_pid)
-                    root_item = QTreeWidgetItem(self.proc_table_tree)
-                    root_item.setText(0, root_proc.username())
-                    root_item.setText(1, root_proc.name())
-                    root_item.setText(2, str(root_proc.pid))
-                    root_item.setText(3, str(root_proc.nice()))
-                    root_item.setText(4, f'00.000%')
-                    root_item.setText(5, f'{root_proc.memory_percent():0>6.3f}%')
-                    root_item.setText(6, str(root_proc.io_counters().read_bytes / 1024))
-                    root_item.setText(7, str(root_proc.io_counters().write_bytes / 1024))
-
-                    # Recursively add the children of the root process
-                    add_tree_items(root_item, parent_pid)
-                except Exception:
-                    # Skip if process info is not available
-                    continue
-
-
-
-        restore_tree_state(self.proc_table_tree, tree_state)
-        self.proc_table_tree.verticalScrollBar().setValue(scroll_position)
 
 
     def calculate_cpu_percent(self, proc):

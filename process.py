@@ -45,6 +45,21 @@ class Proc(psutil.Process):
 
         os.kill(self.pid, signal.SIGTERM)
 
+    def increase_priority(self):
+        try:
+            self.change_priority(self.nice() - 1)
+            print('debug : accepted')
+        except Exception as e:
+            print(f'debug : {e}')
+            print('debug : denied')
+            pass
+
+    def decrease_priority(self):
+        try:
+            self.change_priority(self.nice() + 1)
+        except:
+            pass
+
     def change_priority(self, priority):
         '''
         [param]
@@ -93,8 +108,6 @@ class Proc(psutil.Process):
             (None | str) 실패하면 None, 성공하면, hash 값을 문자열로 반환.
             '''
 
-            print('debug get file hash')
-
             try:
                 sha256_hash = hashlib.sha256()
 
@@ -102,11 +115,8 @@ class Proc(psutil.Process):
                     for byte_block in iter(lambda: f.read(4096), b""):
                         sha256_hash.update(byte_block)
 
-                print('debug get file hash end')
-
                 return sha256_hash.hexdigest()
             except Exception as e:
-                print(f'debug error : {e}')
                 return None
 
         def check_virustotal(file_hash):
@@ -120,27 +130,22 @@ class Proc(psutil.Process):
 
             client = vt.Client(self.api_key)
 
-            print('debug in check_virustotal')
             try:
                 file_report = client.get_object(f"/files/{file_hash}")
                 positives   = file_report.last_analysis_stats['malicious']  # 악성으로 판단한 엔진 수
                 total       = sum(file_report.last_analysis_stats.values())  # 전체 엔진 수
 
-                print(f'debug : {positives} {total}')
                 client.close()
                 return f'{positives}/{total}'
             except vt.error.APIError as e:
                 client.close()
-                return None
+                return 'Not Found'
 
         if not self.is_file_exists():
             return None
 
-        print('debug : check_process_with_vt')
-
         self.vt = check_virustotal(file_hash) if (file_hash := get_file_hash(self.exe())) else ''
 
-        print('debug : end')
 
     def get_handles_info(self):
         limits_path = f'/proc/{self.pid}/limits'
@@ -173,8 +178,6 @@ class Proc(psutil.Process):
         [return]
         bool : 파일 존재 여부
         '''
-
-        print('debug : in is_file_exists')
 
         try:
             self.does_exist = 'N' if os.readlink(f'/proc/{self.pid}/exe').endswith(' (deleted)') else 'Y'
