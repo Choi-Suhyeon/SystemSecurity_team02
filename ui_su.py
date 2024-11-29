@@ -301,67 +301,51 @@ class ProcessViewer(QMainWindow):
 
         self.proc_table_tree.clear() 
         
-        # todo
-        # Fetch the process tree
         process_tree = get_process_tree(self.procs)
 
-        def add_tree_items(parent_item, parent_pid):
-            """
-            Recursively add child processes to the tree.
-            """
-            if parent_pid not in process_tree:
-                return
+        def set_item(proc_tree, super_elem, parent_pid = None):
+            if parent_pid is None:
+                parent_pid  = min(proc_tree.keys())
+                procs       = proc_tree.pop(parent_pid)
+                item        = QTreeWidgetItem(super_elem)
 
-            for child_pid in process_tree[parent_pid]:
+                item.setText(1, '')
+                item.setText(2, '0')
+                item.setText(3, '')
+                item.setText(4, '')
+                item.setText(5, '')
+                item.setText(6, '')
+                item.setText(7, '')
+            else:
+                procs = proc_tree.pop(parent_pid)
+                item = super_elem
+               
+            for p in procs:
                 try:
-                    # Create a new tree item for the child process
-                    child_proc = next(proc for proc in self.procs if proc.pid == child_pid)
-                    child_item = QTreeWidgetItem(parent_item)
-                    child_item.setText(0, child_proc.username())
-                    child_item.setText(1, child_proc.name())
-                    child_item.setText(2, str(child_proc.pid))
-                    child_item.setText(3, str(child_proc.nice()))
+                    child_item = QTreeWidgetItem(item)
+                    child_item.setText(1, p.name())
+                    child_item.setText(2, str(p.pid))
+                    child_item.setText(3, str(p.nice()))
                     child_item.setText(4, f'00.000%')
-                    child_item.setText(5, f'{child_proc.memory_percent():0>6.3f}%')
-                    child_item.setText(6, str(child_proc.io_counters().read_bytes / 1024))
-                    child_item.setText(7, str(child_proc.io_counters().write_bytes / 1024))
-
-                    # Recursively add the children of this process
-                    add_tree_items(child_item, child_pid)
+                    child_item.setText(5, f'{p.memory_percent():0>6.3f}%')
+                    child_item.setText(6, str(p.io_counters().read_bytes / 1024))
+                    child_item.setText(7, str(p.io_counters().write_bytes / 1024))
                 except Exception:
-                    # Skip if process info is not available
-                    continue
+                    child_item = QTreeWidgetItem(item)
+                    child_item.setText(1, '')
+                    child_item.setText(2, str(p.pid))
+                    child_item.setText(3, '')
+                    child_item.setText(4, '')
+                    child_item.setText(5, '')
+                    child_item.setText(6, '')
+                    child_item.setText(7, '')
 
-        # Clear existing items in the tree
-        self.proc_table_tree.clear()
+                if p.pid in proc_tree.keys():
+                    set_item(proc_tree, child_item, p.pid)
 
-        # Add all root processes to the tree
-        for parent_pid, children in process_tree.items():
-            # A root process has no parent in the process_tree keys
-            if parent_pid not in process_tree or all(parent_pid not in v for v in process_tree.values()):
-                try:
-                    root_proc = next(proc for proc in self.procs if proc.pid == parent_pid)
-                    root_item = QTreeWidgetItem(self.proc_table_tree)
-                    root_item.setText(0, root_proc.username())
-                    root_item.setText(1, root_proc.name())
-                    root_item.setText(2, str(root_proc.pid))
-                    root_item.setText(3, str(root_proc.nice()))
-                    root_item.setText(4, f'00.000%')
-                    root_item.setText(5, f'{root_proc.memory_percent():0>6.3f}%')
-                    root_item.setText(6, str(root_proc.io_counters().read_bytes / 1024))
-                    root_item.setText(7, str(root_proc.io_counters().write_bytes / 1024))
-
-                    # Recursively add the children of the root process
-                    add_tree_items(root_item, parent_pid)
-                except Exception:
-                    # Skip if process info is not available
-                    continue
-
-
-
+        set_item(process_tree, self.proc_table_tree)
         restore_tree_state(self.proc_table_tree, tree_state)
         self.proc_table_tree.verticalScrollBar().setValue(scroll_position)
-
 
     def calculate_cpu_percent(self, proc):
         try:
