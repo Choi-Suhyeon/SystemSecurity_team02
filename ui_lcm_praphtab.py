@@ -3,7 +3,7 @@ import time
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QTabWidget, QLabel, QSizePolicy
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
-from func.process_resource_info import ProcessResourceInfo
+from process_resource_info import ProcessResourceInfo
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 class realtime_graph(QTabWidget):

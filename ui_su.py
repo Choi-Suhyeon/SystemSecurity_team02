@@ -17,6 +17,7 @@ from process_tree import get_process_tree
 from PyQt5.QtGui import QPainter, QColor, QFont
 from itertools import tee
 from functools import reduce
+from ui_lcm_praphtab import realtime_graph
 
 
 class ProcessViewer(QMainWindow):
@@ -40,7 +41,7 @@ class ProcessViewer(QMainWindow):
 
         tabs.setTabPosition(QTabWidget.West)
         tabs.addTab(self.get_process_tab(), 'Processes')
-        tabs.addTab(resource_tab, "Resources")
+        tabs.addTab(realtime_graph(), "Resources")
         tabs.addTab(network_tab, "Per-Process Networks")
 
         self.setCentralWidget(tabs)
