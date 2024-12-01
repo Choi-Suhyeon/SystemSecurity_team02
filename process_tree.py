@@ -10,12 +10,15 @@ def get_process_tree(procs):
     [return]
     pid를 key로 key의 자식 프로세스들을(Proc 객체들의 집합) value로 하는 딕셔너리.
     '''
-    return reduce(lambda d, p: d | { p.ppid(): d.get(p.ppid(), set()) | set((p,)) }, procs, dict())
+    result = dict()
 
-# a = get_process_tree(Proc(i) for i in psutil.process_iter())
-# print(a)
-# print('------\n', a.keys())
+    for p in procs:
+        try:
+            key = p.ppid()
+        except Exception:
+            continue
 
-# a = [Proc(i) for i in psutil.process_iter()]
-# print([i.name() for i in a])
+        result[key] = result.get(key, set()) | set((p,))
+
+    return result
 

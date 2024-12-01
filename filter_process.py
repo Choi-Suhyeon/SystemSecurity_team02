@@ -13,9 +13,7 @@ def filter_process_by_name(procs, pattern):
         list - 정규 표현식 패턴과 일치하는 프로세스 이름 목록
         None - 유효하지 않은 패턴 또는 기타 오류 발생 시
     """
-    print('debug : in filter_process_by_name')
     try:
         return [p for p in procs if re.search(pattern, p.name())]
     except re.error:
-        print('debug : filter_process_by_name : return None')
         return None

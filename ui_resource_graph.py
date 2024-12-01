@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from process_resource_info import ProcessResourceInfo
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-class realtime_graph(QTabWidget):
+class RealtimeGraph(QTabWidget):
     def __init__(self):
         super().__init__()        
         # 그래프 객체 초기화

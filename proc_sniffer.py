@@ -73,7 +73,7 @@ class PacketCollector:
 
 # 테스트 코드
 if __name__ == "__main__":
-    pid = 3566  # 실제 PID 대체
+    pid = 20585  # 실제 PID 대체
     collector = PacketCollector(pid)
     try:
         print("패킷 수집 시작...")
@@ -85,4 +85,4 @@ if __name__ == "__main__":
     # 패킷 데이터 추출
     collected_packets = collector.get_collected_packets()
     for packet in collected_packets:
-        print(packet)
+        print(f'|{packet}|', flush=True)

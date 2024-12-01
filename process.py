@@ -186,7 +186,3 @@ class Proc(psutil.Process):
             self.does_exist = 'N'
             return False
 
-
-# p = Proc(12264) 
-# print(p.get_handles_info())
-

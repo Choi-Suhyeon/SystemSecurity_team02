@@ -17,34 +17,16 @@ from process_tree import get_process_tree
 from PyQt5.QtGui import QPainter, QColor, QFont
 from itertools import tee
 from functools import reduce
-from ui_lcm_praphtab import realtime_graph
 
-
-class ProcessViewer(QMainWindow):
+class ProcessTab(QTabWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Process Viewer')
-        self.setGeometry(300, 300, 1100, 600)
-
-        tabs = QTabWidget()
-        resource_tab = QWidget()
-        network_tab = QWidget()
 
         self.procs = list()
         self.procs_user = dict()
         self.regex = str()
-        # self.previous_cpu_times = {}
-        # self.previous_cpu_data = {}
 
         self.update_proc_objs()
-        # self.init_cpu_usage()
-
-        tabs.setTabPosition(QTabWidget.West)
-        tabs.addTab(self.get_process_tab(), 'Processes')
-        tabs.addTab(realtime_graph(), "Resources")
-        tabs.addTab(network_tab, "Per-Process Networks")
-
-        self.setCentralWidget(tabs)
 
         self.timer = QTimer()
 
@@ -54,13 +36,10 @@ class ProcessViewer(QMainWindow):
         self.timer.timeout.connect(self.update_proc_tree_table)
         self.timer.start()
 
-    def init_cpu_usage(self):
-        for proc in self.procs:
-            try:
-                self.previous_cpu_times[proc.pid] = proc.cpu_times()
-            except Exception:
-                pass
-
+        self.addTab(self.get_list_view_tab(), 'List')
+        self.addTab(self.get_users_view_tab(), 'Users')
+        self.addTab(self.get_tree_view_tab(), 'Tree')
+        
     def update_proc_objs(self):
         def get_username(proc):
             try:
@@ -106,24 +85,16 @@ class ProcessViewer(QMainWindow):
                 dict_update(self.procs_user, get_username(n), n)
 
 
-    def get_process_tab(self):
-        inner_tabs = QTabWidget()
-
-        inner_tabs.addTab(self.get_list_view_tab(), 'List')
-        inner_tabs.addTab(self.get_users_view_tab(), 'Users')
-        inner_tabs.addTab(self.get_tree_view_tab(), 'Tree')
-
-        return inner_tabs
-
     def get_list_view_tab(self):
-        self.reg_line_edit = QLineEdit(self)
-        self.filter_btn    = QPushButton('filter', self)
-        self.snapshot_btn  = QPushButton('save snapshot', self)
+        result = QWidget()
+        hbox = QHBoxLayout()
+
+        self.reg_line_edit = QLineEdit(result)
+        self.filter_btn    = QPushButton('filter', result)
+        self.snapshot_btn  = QPushButton('save snapshot', result)
 
         self.reg_line_edit.editingFinished.connect(self.filter_process)
         self.filter_btn.clicked.connect(self.filter_process)
-
-        hbox = QHBoxLayout()
 
         hbox.addWidget(self.reg_line_edit)
         hbox.addWidget(self.filter_btn)
@@ -135,7 +106,7 @@ class ProcessViewer(QMainWindow):
             'does exist', 'virus total',
         ]
 
-        self.proc_table = QTableWidget(self)
+        self.proc_table = QTableWidget(result)
         self.proc_table.setColumnCount(len(var_names))
 
         self.proc_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -146,12 +117,11 @@ class ProcessViewer(QMainWindow):
         self.proc_table.hideColumn(0)
         self.update_proc_table()
 
-        vbox = QVBoxLayout()
+        vbox = QVBoxLayout(result)
 
         vbox.addLayout(hbox)
         vbox.addWidget(self.proc_table)
 
-        result = QWidget()
         result.setLayout(vbox)
 
         return result
@@ -348,28 +318,6 @@ class ProcessViewer(QMainWindow):
         restore_tree_state(self.proc_table_tree, tree_state)
         self.proc_table_tree.verticalScrollBar().setValue(scroll_position)
 
-    def calculate_cpu_percent(self, proc):
-        try:
-            current_time = time.time()
-            if proc.pid not in self.previous_cpu_times:
-                self.previous_cpu_times[proc.pid] = proc.cpu_times()
-                return 0.0
-
-            # Fetch previous CPU times and calculate deltas
-            prev_times = self.previous_cpu_times[proc.pid]
-            curr_times = proc.cpu_times()
-            delta_user = curr_times.user - prev_times.user
-            delta_system = curr_times.system - prev_times.system
-            delta_time = current_time - self.previous_update_time
-
-            # Update previous times
-            self.previous_cpu_times[proc.pid] = curr_times
-            if delta_time > 0:
-                return 100.0 * (delta_user + delta_system) / (psutil.cpu_count() * delta_time)
-            else:
-                return 0.0
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return 0.0
 
     def filter_process(self):
         self.regex = self.reg_line_edit.text()
@@ -408,10 +356,4 @@ class ProcessViewer(QMainWindow):
         context_menu.addAction(check_vt_action)
         context_menu.exec_(self.proc_table.viewport().mapToGlobal(pos))
 
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    viewer = ProcessViewer()
-    viewer.show()
-    sys.exit(app.exec_())
 
