@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QTableWidget, QTabBar,
     QWidget, QLineEdit, QPushButton, QTabWidget, QTreeView, QTableView, QHeaderView,
     QAbstractItemView, QMenu, QAction, QTableWidgetItem, QTreeWidget, QTreeWidgetItem,
+    QFileDialog,
 )
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import QTimer, QItemSelectionModel, QPoint, Qt, QSize
@@ -17,6 +18,7 @@ from process_tree import get_process_tree
 from PyQt5.QtGui import QPainter, QColor, QFont
 from itertools import tee
 from functools import reduce
+from snapshot import save_snapshot
 
 class ProcessTab(QTabWidget):
     def __init__(self):
@@ -25,6 +27,7 @@ class ProcessTab(QTabWidget):
         self.procs = list()
         self.procs_user = dict()
         self.regex = str()
+        self.cpu_count = psutil.cpu_count()
 
         self.update_proc_objs()
 
@@ -95,6 +98,7 @@ class ProcessTab(QTabWidget):
 
         self.reg_line_edit.editingFinished.connect(self.filter_process)
         self.filter_btn.clicked.connect(self.filter_process)
+        self.snapshot_btn.clicked.connect(self.save_snapshot)
 
         hbox.addWidget(self.reg_line_edit)
         hbox.addWidget(self.filter_btn)
@@ -182,7 +186,7 @@ class ProcessTab(QTabWidget):
                 self.proc_table.setItem(row_cnt, 2, QTableWidgetItem(str(proc.pid)))
                 self.proc_table.setItem(row_cnt, 3, QTableWidgetItem(proc.username()))
                 self.proc_table.setItem(row_cnt, 4, QTableWidgetItem(str(proc.nice())))
-                self.proc_table.setItem(row_cnt, 5, QTableWidgetItem(f'00.000%'))
+                self.proc_table.setItem(row_cnt, 5, QTableWidgetItem(f'{proc.cpu_percent(0)/self.cpu_count:0>6.3f}%'))
                 self.proc_table.setItem(row_cnt, 6, QTableWidgetItem(f'{proc.memory_percent():0>6.3f}%'))
                 self.proc_table.setItem(row_cnt, 7, QTableWidgetItem(str(proc.io_counters().read_bytes / 1024)))
                 self.proc_table.setItem(row_cnt, 8, QTableWidgetItem(str(proc.io_counters().write_bytes / 1024)))
@@ -297,7 +301,7 @@ class ProcessTab(QTabWidget):
                     child_item.setText(1, p.name())
                     child_item.setText(2, str(p.pid))
                     child_item.setText(3, str(p.nice()))
-                    child_item.setText(4, f'00.000%')
+                    child_item.setText(4, f'{p.cpu_percent(0)/5:0>6.3f}%')
                     child_item.setText(5, f'{p.memory_percent():0>6.3f}%')
                     child_item.setText(6, str(p.io_counters().read_bytes / 1024))
                     child_item.setText(7, str(p.io_counters().write_bytes / 1024))
@@ -356,4 +360,11 @@ class ProcessTab(QTabWidget):
         context_menu.addAction(check_vt_action)
         context_menu.exec_(self.proc_table.viewport().mapToGlobal(pos))
 
+    def save_snapshot(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "Open File", "", "All Files (*)")
+
+        if not file_path:
+            return
+
+        save_snapshot([Proc(i) for i in psutil.process_iter()], file_path)
 
