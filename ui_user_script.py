@@ -75,7 +75,7 @@ class UserDefinedScriptTab(QWidget):
 
     def run_code(self):
         code = self.code_editor.toPlainText() 
-        ouput = run_user_script(code)
+        output = run_user_script(code)
         self.result_viewer.setText(output)
 
     def new_file(self):
